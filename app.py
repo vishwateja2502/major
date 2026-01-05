@@ -509,4 +509,5 @@ if __name__ == "__main__":
     print("✅ Summary saved as 'summary_text' in AWS")
     print("✅ Dashboard fetches from 'summary_text' field")
     print("="*60 + "\n")
-    app.run(debug=True, port=5000, host="0.0.0.0")
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
