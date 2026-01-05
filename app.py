@@ -420,32 +420,28 @@ def process_audio():
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/login', methods=['POST', 'OPTIONS'])
+
+@app.route("/login", methods=["POST"])
 def login():
-    # Handle CORS preflight
-    if request.method == 'OPTIONS':
-        return jsonify({"ok": True}), 200
+    data = request.get_json()
 
-    try:
-        data = request.get_json()
-        username = data.get('username', '').strip()
-        password = data.get('password', '').strip()
+    if not data:
+        return jsonify({"error": "No data received"}), 400
 
-        for creds in LOGIN_CREDENTIALS.values():
-            if creds['username'] == username and creds['password'] == password:
-                return jsonify({
-                    "success": True,
-                    "category": creds['category'],
-                    "username": username
-                }), 200
+    username = data.get("username")
+    password = data.get("password")
 
+    if username in USERS and USERS[username] == password:
         return jsonify({
-            "success": False,
-            "error": "Invalid login details."
-        }), 401
+            "success": True,
+            "message": "Login successful",
+            "role": username
+        }), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({
+        "success": False,
+        "message": "Invalid username or password"
+    }), 401
 
 
 @app.route('/get_queries/<int:category>', methods=['GET'])
