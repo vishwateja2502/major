@@ -1,0 +1,10 @@
+python-dotenv
+groq
+flask
+flask-cors
+boto3
+deepgram-sdk==4.*
+gunicorn
+retell-sdk
+uvicorn
+uvicorn[standard]
