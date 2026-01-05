@@ -24,7 +24,17 @@ DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "be0da791afd11bf54bd1308572ee18
 # FLASK APP INITIALIZATION
 # ------------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(
+    app,
+    resources={r"/*": {
+        "origins": [
+            "http://localhost:3000",
+            "https://major-rbn1.onrender.com"
+        ]
+    }},
+    supports_credentials=True
+)
+
 
 # ------------------------------
 # CONNECT TO AWS DYNAMODB
@@ -410,29 +420,33 @@ def process_audio():
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
-    """Handle login"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({"ok": True}), 200
+
     try:
         data = request.get_json()
         username = data.get('username', '').strip()
         password = data.get('password', '').strip()
-        
-        for key, creds in LOGIN_CREDENTIALS.items():
+
+        for creds in LOGIN_CREDENTIALS.values():
             if creds['username'] == username and creds['password'] == password:
                 return jsonify({
                     "success": True,
                     "category": creds['category'],
                     "username": username
                 }), 200
-        
+
         return jsonify({
             "success": False,
             "error": "Invalid login details."
         }), 401
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/get_queries/<int:category>', methods=['GET'])
 def get_queries(category):
