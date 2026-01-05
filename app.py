@@ -18,23 +18,19 @@ AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "be0da791afd11bf54bd1308572ee18533852e273")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")  # ✅ FIXED: No hardcoded key
 
 # ------------------------------
 # FLASK APP INITIALIZATION
 # ------------------------------
 app = Flask(__name__)
+
+# ✅ FIXED: Simplified CORS that works with React + Render
 CORS(
     app,
-    resources={r"/*": {
-        "origins": [
-            "http://localhost:3000",
-            "https://major-rbn1.onrender.com"
-        ]
-    }},
-    supports_credentials=True
+    resources={r"/*": {"origins": "*"}},
+    supports_credentials=False
 )
-
 
 # ------------------------------
 # CONNECT TO AWS DYNAMODB
@@ -150,7 +146,7 @@ def save_query(service_number, query_text):
     table_name = TABLE_MAP[service_number]
     table = dynamodb.Table(table_name)
 
-    # Generate summary ONCE when saving
+    # Generate summary when saving
     print(f"\n{'='*60}")
     print(f"📝 GENERATING SUMMARY FOR NEW QUERY")
     print(f"{'='*60}")
@@ -160,7 +156,7 @@ def save_query(service_number, query_text):
     item = {
         "query_id": str(uuid.uuid4()),
         "query_text": query_text,
-        "summary_text": summary,  # ✅ CHANGED: Using summary_text instead of summary
+        "summary_text": summary,
         "timestamp": datetime.now(UTC).isoformat()
     }
 
@@ -421,35 +417,46 @@ def process_audio():
         return jsonify({"error": str(e)}), 500
 
 
+# ✅ FIXED: Correct login logic using LOGIN_CREDENTIALS
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
+    """Login endpoint - validates credentials and returns user info"""
+    try:
+        data = request.get_json()
 
-    if not data:
-        return jsonify({"error": "No data received"}), 400
+        if not data:
+            return jsonify({"error": "No data received"}), 400
 
-    username = data.get("username")
-    password = data.get("password")
+        username = data.get("username")
+        password = data.get("password")
 
-    if username in USERS and USERS[username] == password:
+        # ✅ FIXED: Use LOGIN_CREDENTIALS instead of undefined USERS
+        user = LOGIN_CREDENTIALS.get(username)
+
+        if user and user["password"] == password:
+            return jsonify({
+                "success": True,
+                "message": "Login successful",
+                "role": username,
+                "category": user["category"]  # ✅ Return category for routing
+            }), 200
+
         return jsonify({
-            "success": True,
-            "message": "Login successful",
-            "role": username
-        }), 200
-
-    return jsonify({
-        "success": False,
-        "message": "Invalid username or password"
-    }), 401
+            "success": False,
+            "message": "Invalid username or password"
+        }), 401
+        
+    except Exception as e:
+        print(f"❌ Error in /login: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Server error during login"
+        }), 500
 
 
 @app.route('/get_queries/<int:category>', methods=['GET'])
 def get_queries(category):
-    """
-    ✅ FETCH QUERIES FROM AWS DYNAMODB
-    Summary is fetched directly from database (NOT generated)
-    """
+    """Fetch queries from AWS DynamoDB - Summary from database"""
     try:
         print(f"\n{'='*60}")
         print(f"📊 FETCHING QUERIES FROM AWS")
@@ -470,9 +477,9 @@ def get_queries(category):
         queries = []
         for item in items:
             query_text = item.get("query_text", "")
-            summary = item.get("summary_text", "")  # ✅ CHANGED: Using summary_text
+            summary = item.get("summary_text", "")
             
-            # If summary missing (old data), use fallback
+            # Fallback if summary missing (old data)
             if not summary or summary.strip() == "":
                 print(f"⚠️  No summary_text for {item.get('query_id', 'unknown')}, using fallback")
                 summary = query_text[:100] + "..." if len(query_text) > 100 else query_text
@@ -480,7 +487,7 @@ def get_queries(category):
             queries.append({
                 "query_id": item.get("query_id", ""),
                 "query_text": query_text,
-                "summary": summary,  # Frontend expects "summary"
+                "summary": summary,
                 "category": category,
                 "timestamp": item.get("timestamp", "")
             })
@@ -502,12 +509,26 @@ def get_queries(category):
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+# ✅ Health check endpoint
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "service": "Flask Backend API",
+        "version": "1.0.0"
+    }), 200
+
+
 if __name__ == "__main__":
     print("\n" + "="*60)
     print("🚀 FLASK SERVER STARTING")
     print("="*60)
+    print("✅ Login bug FIXED")
+    print("✅ CORS configured for React + Render")
     print("✅ Summary saved as 'summary_text' in AWS")
     print("✅ Dashboard fetches from 'summary_text' field")
     print("="*60 + "\n")
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)
